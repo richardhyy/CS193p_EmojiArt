@@ -7,11 +7,12 @@
 
 import Foundation
 
-struct EmojiArt {
+// Codable = Encodable&Decodable
+struct EmojiArt: Codable {
     var backgroundURL: URL?
     var emojis = [Emoji]()
     
-    struct Emoji: Identifiable {
+    struct Emoji: Identifiable, Codable, Hashable {
         let id: Int // can use `= UUID()` alternatively
         let text: String
         var x: Int // offset from the center
@@ -27,6 +28,24 @@ struct EmojiArt {
             self.y = y
             self.size = size
         }
+    }
+    
+    var json: Data? {
+        return try? JSONEncoder().encode(self)
+    }
+    
+    // question mark after `init`: failable initializer
+    // which may return `nil`
+    init?(json: Data?) {
+        if json != nil, let newEmojiArt = try? JSONDecoder().decode(EmojiArt.self, from: json!) {
+            self = newEmojiArt // can assign a new value because it's a struct which represents a value
+        } else {
+            return nil
+        }
+    }
+    
+    init() {
+        
     }
     
     private var uniqueEmojiId = 0

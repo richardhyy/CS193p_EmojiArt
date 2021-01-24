@@ -8,13 +8,29 @@
 import SwiftUI
 
 class EmojiArtDocument: ObservableObject {
+    private static let untitled = "EmojiArtDocument.Untitled"
     static let palette: String = "🐶😂🍧😓🧶🤔"
     
-    @Published private var emojiArt: EmojiArt = EmojiArt()
+    @Published private var emojiArt: EmojiArt = EmojiArt() {
+        /* No longer needed: property observer not working bug has been fixed for @Published
+         willSet {
+            objectWillChange.send()
+         }
+         */
+        didSet {
+            //print("json = \(emojiArt.json?.utf8 ?? "nil")")
+            UserDefaults.standard.set(emojiArt.json, forKey: EmojiArtDocument.untitled)
+        }
+    }
     
     @Published private(set) var backgroundImage: UIImage?
     
     var emojis: [EmojiArt.Emoji] { emojiArt.emojis }
+    
+    init() {
+        emojiArt = EmojiArt(json: UserDefaults.standard.data(forKey: EmojiArtDocument.untitled)) ?? EmojiArt()
+        fetchBackgroundImageData()
+    }
     
     private func fetchBackgroundImageData() {
         backgroundImage = nil
@@ -53,6 +69,10 @@ class EmojiArtDocument: ObservableObject {
     func setBackgroundURL(_ url: URL?) {
         emojiArt.backgroundURL = url?.imageURL
         fetchBackgroundImageData()
+    }
+    
+    func clear() {
+        emojiArt = EmojiArt()
     }
 }
 
