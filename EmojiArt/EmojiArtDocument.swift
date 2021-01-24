@@ -11,6 +11,16 @@ class EmojiArtDocument: ObservableObject {
     private static let untitled = "EmojiArtDocument.Untitled"
     static let palette: String = "🐶😂🍧😓🧶🤔"
     
+    @Published private var selectedEmojiIds = Set<Int>()
+    
+    var selectedEmojis:Set<EmojiArt.Emoji> {
+        var selected = Set<EmojiArt.Emoji>()
+        for id in selectedEmojiIds {
+            selected.insert(emojiArt.emojis[emojiArt.emojis.firstIndex(ofId: id)!])
+        }
+        return selected
+    }
+    
     @Published private var emojiArt: EmojiArt = EmojiArt() {
         /* No longer needed: property observer not working bug has been fixed for @Published
          willSet {
@@ -66,12 +76,33 @@ class EmojiArtDocument: ObservableObject {
         }
     }
     
+    func select(_ emoji: EmojiArt.Emoji) {
+        if selectedEmojis.contains(matching: emoji) {
+            selectedEmojiIds.remove(emoji.id)
+        }
+        else {
+            selectedEmojiIds.insert(emoji.id)
+        }
+    }
+    
+    func deselectAll() {
+        selectedEmojiIds.removeAll()
+    }
+    
     func setBackgroundURL(_ url: URL?) {
         emojiArt.backgroundURL = url?.imageURL
         fetchBackgroundImageData()
     }
     
+    func removeEmoji(_ emoji: EmojiArt.Emoji) {
+        if selectedEmojis.contains(matching: emoji) {
+            selectedEmojiIds.remove(emoji.id)
+        }
+        emojiArt.removeEmoji(emoji)
+    }
+    
     func clear() {
+        backgroundImage = nil
         emojiArt = EmojiArt()
     }
 }

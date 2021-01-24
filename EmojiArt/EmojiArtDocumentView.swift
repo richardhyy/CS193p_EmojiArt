@@ -35,11 +35,37 @@ struct EmojiArtDocumentView: View {
                             .scaleEffect(zoomScale)
                             .offset(panOffset)
                     )
-                    .gesture(doubleTapToZoom(in: geometry.size))
+                    //.gesture(singleTapToDeselectAll().exclusively(before: doubleTapToZoom(in: geometry.size))) // ❌ WRONG ORDER
+                    .gesture(doubleTapToZoom(in: geometry.size).exclusively(before: singleTapToDeselectAll()))
+                    
                     ForEach(self.document.emojis) { emoji in
-                        Text(emoji.text)
-                            .font(animatableWithSize: emoji.fontSize * zoomScale)
-                            .position(self.position(for: emoji, in: geometry.size))
+                        let fontSize = emoji.fontSize * zoomScale
+                        ZStack {
+                            if document.selectedEmojis.contains(matching: emoji) {
+                                RoundedRectangle(cornerRadius: 5)
+                                    .foregroundColor(Color(UIColor(red: 0.5, green: 0.7, blue: 1.0, alpha: 0.5)))
+                                    .frame(width: fontSize + 4, height: fontSize + 4)
+                            }
+                            
+                            Text(emoji.text)
+                                .font(animatableWithSize: fontSize)
+                                .onTapGesture {
+                                    document.select(emoji)
+                                }
+                                .gesture(moveEmojiGesture(emoji))
+                            
+                            if document.selectedEmojis.contains(matching: emoji) {
+                                Image(systemName: "minus.circle.fill")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 24, height: 24)
+                                    .offset(x: fontSize / 2 - fontSize * 0.1, y: -fontSize / 2 + fontSize * 0.1)
+                                    .onTapGesture {
+                                        document.removeEmoji(emoji)
+                                    }
+                            }
+                        }
+                        .position(self.position(for: emoji, in: geometry.size))
                     }
                 }
                 .clipped()
@@ -69,10 +95,28 @@ struct EmojiArtDocumentView: View {
             // the second para(gestureZoomScale) modified by `inout`
             // (CGFloat, inout State, inout Transaction)
             .updating($gestureZoomScale) { latestGestureScale, gestureZoomScale, transaction in
-                gestureZoomScale = latestGestureScale
+                if document.selectedEmojis.count == 0 { // No emoji selected
+                    gestureZoomScale = latestGestureScale
+                }
+                else { // scale selected emojis
+                    for emoji in document.selectedEmojis {
+                        if (latestGestureScale > 1 && emoji.size < 150) || (latestGestureScale < 1 && emoji.size > 15) {
+                            document.scaleEmoji(emoji, by: latestGestureScale)
+                        }
+                    }
+                }
             }
             .onEnded { finalGestureScale in
-                steadyStateZoomScale *= finalGestureScale
+                if document.selectedEmojis.count == 0 { // No emoji selected
+                    steadyStateZoomScale *= finalGestureScale
+                }
+            }
+    }
+    
+    private func singleTapToDeselectAll() -> some Gesture {
+        TapGesture(count: 1)
+            .onEnded() {
+                document.deselectAll()
             }
     }
     
@@ -109,6 +153,21 @@ struct EmojiArtDocumentView: View {
             }
             .onEnded { finalDragGestureValue in
                 steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
+            }
+    }
+    
+    
+    private func moveEmojiGesture(_ emoji: EmojiArt.Emoji) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                if (document.selectedEmojis.contains(matching: emoji)) {
+                    for e in document.selectedEmojis {
+                        document.moveEmoji(e, by: value.translation)
+                    }
+                }
+                else {
+                    document.moveEmoji(emoji, by: value.translation)
+                }
             }
     }
     
