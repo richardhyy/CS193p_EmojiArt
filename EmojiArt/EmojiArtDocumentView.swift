@@ -10,24 +10,26 @@ import SwiftUI
 struct EmojiArtDocumentView: View {
     @ObservedObject var document: EmojiArtDocument
     
+    @State private var chosenPalette: String = ""
     var body: some View {
         VStack {
             HStack {
+                PaletteChooser(document: document, chosenPalette: $chosenPalette)
                 ScrollView(.horizontal) {
                     HStack {
                         // use `id` arg so we don't have to extend String to be identifiable
-                        ForEach(EmojiArtDocument.palette.map { String($0) }, id: \.self) { emoji in
+                        ForEach(chosenPalette.map { String($0) }, id: \.self) { emoji in
                             Text(emoji)
                                 .font(Font.system(size: defaultEmojiSize))
                                 .onDrag { NSItemProvider(object: emoji as NSString ) }
                         }
                     }
                 }
+                .onAppear() { chosenPalette = document.defaultPalette }
                 Button("Clear") {
                     document.clear()
                 }
-            }
-            .padding(.horizontal)
+            }.padding(.horizontal)
             GeometryReader { geometry in
                 ZStack {
                     Color.white.overlay(
@@ -38,40 +40,24 @@ struct EmojiArtDocumentView: View {
                     //.gesture(singleTapToDeselectAll().exclusively(before: doubleTapToZoom(in: geometry.size))) // ❌ WRONG ORDER
                     .gesture(doubleTapToZoom(in: geometry.size).exclusively(before: singleTapToDeselectAll()))
                     
-                    ForEach(self.document.emojis) { emoji in
-                        let fontSize = emoji.fontSize * zoomScale
-                        ZStack {
-                            if document.selectedEmojis.contains(matching: emoji) {
-                                RoundedRectangle(cornerRadius: 5)
-                                    .foregroundColor(Color(UIColor(red: 0.5, green: 0.7, blue: 1.0, alpha: 0.5)))
-                                    .frame(width: fontSize + 4, height: fontSize + 4)
-                            }
-                            
-                            Text(emoji.text)
-                                .font(animatableWithSize: fontSize)
-                                .onTapGesture {
-                                    document.select(emoji)
-                                }
-                                .gesture(moveEmojiGesture(emoji))
-                            
-                            if document.selectedEmojis.contains(matching: emoji) {
-                                Image(systemName: "minus.circle.fill")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 24, height: 24)
-                                    .offset(x: fontSize / 2 - fontSize * 0.1, y: -fontSize / 2 + fontSize * 0.1)
-                                    .onTapGesture {
-                                        document.removeEmoji(emoji)
-                                    }
-                            }
+                    if isLoading {
+                        Image(systemName: "hourglass")
+                            .imageScale(.large)
+                            .spinning()
+                    }
+                    else {
+                        ForEach(self.document.emojis) { emoji in
+                            emojiView(emoji: emoji, geometry: geometry)
                         }
-                        .position(self.position(for: emoji, in: geometry.size))
                     }
                 }
                 .clipped()
                 .gesture(panGesture())
                 .gesture(zoomGesture())
                 .edgesIgnoringSafeArea([.horizontal, .bottom])
+                .onReceive(document.$backgroundImage) { image in
+                    zoomToFit(image, in: geometry.size)
+                }
                 .onDrop(of: ["public.image", "public.text"], isTargeted: nil) { providers, location in
                     var loc = geometry.convert(location, from: .global)
                     loc = CGPoint(x: loc.x - geometry.size.width/2, y: loc.y - geometry.size.height/2)
@@ -81,6 +67,42 @@ struct EmojiArtDocumentView: View {
                 }
             }
         }
+    }
+    
+    @ViewBuilder
+    func emojiView(emoji: EmojiArt.Emoji, geometry: GeometryProxy) -> some View {
+        let fontSize = emoji.fontSize * zoomScale
+        
+        ZStack {
+            if document.selectedEmojis.contains(matching: emoji) {
+                RoundedRectangle(cornerRadius: 5)
+                    .foregroundColor(Color(UIColor(red: 0.5, green: 0.7, blue: 1.0, alpha: 0.5)))
+                    .frame(width: fontSize + 4, height: fontSize + 4)
+            }
+            
+            Text(emoji.text)
+                .font(animatableWithSize: fontSize)
+                .onTapGesture {
+                    document.select(emoji)
+                }
+                .gesture(moveEmojiGesture(emoji))
+            
+            if document.selectedEmojis.contains(matching: emoji) {
+                Image(systemName: "minus.circle.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 24, height: 24)
+                    .offset(x: fontSize / 2 - fontSize * 0.1, y: -fontSize / 2 + fontSize * 0.1)
+                    .onTapGesture {
+                        document.removeEmoji(emoji)
+                    }
+            }
+        }
+        .position(self.position(for: emoji, in: geometry.size))
+    }
+    
+    var isLoading: Bool {
+        document.backgroundURL != nil && document.backgroundImage == nil
     }
     
     @State private var steadyStateZoomScale: CGFloat = 1.0
@@ -183,7 +205,7 @@ struct EmojiArtDocumentView: View {
     private func drop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
         var found = providers.loadFirstObject(ofType: URL.self) { url in
             print("Dropped \(url)")
-            document.setBackgroundURL(url)
+            document.backgroundURL = url
         }
         if !found {
             found = providers.loadObjects(ofType: String.self) { string in
