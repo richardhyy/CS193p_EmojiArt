@@ -8,7 +8,17 @@
 import SwiftUI
 import Combine
 
-class EmojiArtDocument: ObservableObject {
+class EmojiArtDocument: ObservableObject, Hashable, Equatable, Identifiable {
+    static func == (lhs: EmojiArtDocument, rhs: EmojiArtDocument) -> Bool {
+        lhs.id == rhs.id // for class it's okay, but for a `struct`, we need to compare each variable
+    }
+    
+    let id: UUID
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
     private static let untitled = "EmojiArtDocument.Untitled"
     static let palette: String = "🐶😂🍧😓🧶🤔"
     
@@ -30,10 +40,12 @@ class EmojiArtDocument: ObservableObject {
     
     private var autoSaveCancellable: AnyCancellable? // from framework `Combine` (import Combine)
     
-    init() {
-        emojiArt = EmojiArt(json: UserDefaults.standard.data(forKey: EmojiArtDocument.untitled)) ?? EmojiArt()
+    init(id: UUID? = nil) {
+        self.id = id ?? UUID()
+        let defaultKey = "EmojiArtDocument.\(self.id.uuidString)"
+        emojiArt = EmojiArt(json: UserDefaults.standard.data(forKey: defaultKey)) ?? EmojiArt()
         autoSaveCancellable = $emojiArt.sink { emojiArt in
-            UserDefaults.standard.set(emojiArt.json, forKey: EmojiArtDocument.untitled)
+            UserDefaults.standard.set(emojiArt.json, forKey: defaultKey)
         }
         fetchBackgroundImageData()
     }
@@ -55,6 +67,9 @@ class EmojiArtDocument: ObservableObject {
         }
     }
     
+    @Published var steadyStatePanOffset: CGSize = .zero
+    @Published var steadyStateZoomScale: CGFloat = 1.0
+
     // MARK: - Intent(s)
     
     func addEmoji(_ emoji: String, at location: CGPoint, size: CGFloat) {
