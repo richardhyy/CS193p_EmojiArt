@@ -12,6 +12,8 @@ struct EmojiArtDocumentChooser: View {
     
     @State private var editMode: EditMode = .inactive
     
+    @State private var isShowingNameAlreadyTakenAlert = false
+    
     var body: some View {
         NavigationView {
             List {
@@ -21,8 +23,13 @@ struct EmojiArtDocumentChooser: View {
                                     .navigationBarTitleDisplayMode(.inline)
                     ) {
                         EditableText(store.name(for: document), isEditing: editMode.isEditing) { name in
-                            store.setName(name, for: document)
+                            if !store.setName(name, for: document) {
+                                isShowingNameAlreadyTakenAlert = true
+                            }
                         }
+                        .alert(isPresented: $isShowingNameAlreadyTakenAlert, content: {
+                            Alert(title: Text("Failed"), message: Text("The new name is already taken. Please choose a different name."))
+                        })
                     }
                 }
                 .onDelete { indexSet in
