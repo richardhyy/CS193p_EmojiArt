@@ -33,9 +33,8 @@ class EmojiArtDocumentStore: ObservableObject
             else {
                 return false
             }
-        } else {
-            documentNames[document] = name
         }
+        documentNames[document] = name
         return true
     }
     
